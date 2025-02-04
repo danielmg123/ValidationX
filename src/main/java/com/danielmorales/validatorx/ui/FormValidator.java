@@ -1,22 +1,15 @@
 package com.danielmorales.validatorx.ui;
 
-import com.danielmorales.validatorx.core.ValidationError;
 import com.danielmorales.validatorx.core.ValidationResult;
 import com.danielmorales.validatorx.core.Validator;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.scene.control.TextField;
-
+import javafx.util.Duration;
 import java.util.function.Consumer;
 
-/**
- * Provides real-time validation for JavaFX TextFields.
- * Usage:
- *   FormValidator.attach(emailField)
- *       .isEmail("Invalid email!")
- *       .onValid(() -> emailField.setStyle("-fx-border-color: green;"))
- *       .onInvalid(() -> emailField.setStyle("-fx-border-color: red;"));
- */
 public class FormValidator {
 
     public static UIFieldValidator attach(TextField textField) {
@@ -27,24 +20,27 @@ public class FormValidator {
         private final TextField textField;
         private Consumer<Void> onValidCallback;
         private Consumer<Void> onInvalidCallback;
-        
+
+        // Flag to optionally use annotation-based validation (if applicable)
         private boolean useAnnotations = false;
         private final ValidationResult result = new ValidationResult();
 
-        // Programmatic checks
-        // Example: .isEmail("Error message")
-        private final Validator.ValidationBuilder builder;
+        // Use a custom wrapper object for dynamic value extraction
+        private final FieldValueHolder fieldValueHolder = new FieldValueHolder();
+
+        // Build the fluent validator using the FieldValueHolder as target
+        private final Validator.ValidationBuilder builder = Validator.check(fieldValueHolder).skipAnnotations();
+
+        // Timeline for debouncing the text-change events
+        private Timeline debounceTimeline;
 
         private UIFieldValidator(TextField textField) {
             this.textField = textField;
-            this.builder = Validator.check(textField) // we'll store text in a "value" field below
-                                .skipAnnotations();   // skip because there's no annotation on a TextField
             initListener();
         }
 
         /**
-         * If we use annotation-based validation on an object that
-         * syncs with this TextField, could change logic here,
+         * Optionally enable annotation-based validation if needed.
          */
         public UIFieldValidator withAnnotations(boolean useAnnotations) {
             this.useAnnotations = useAnnotations;
@@ -52,55 +48,59 @@ public class FormValidator {
         }
 
         /**
-         * This method sets up a listener for text changes and triggers validation.
+         * Sets up a debounced listener for text changes.
          */
         private void initListener() {
             textField.textProperty().addListener(new ChangeListener<String>() {
                 @Override
                 public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
-                    validateInput(newValue);
+                    // Cancel any previously scheduled validation
+                    if (debounceTimeline != null) {
+                        debounceTimeline.stop();
+                    }
+                    // Schedule validation after a 300ms delay
+                    debounceTimeline = new Timeline(new KeyFrame(Duration.millis(300), event -> {
+                        validateInput(newValue);
+                    }));
+                    debounceTimeline.setCycleCount(1);
+                    debounceTimeline.play();
                 }
             });
         }
 
-        // Example rule: Email
+        // Example rule: validate that the input is a valid email.
         public UIFieldValidator isEmail(String customMsg) {
-            // We'll store the field value in a pseudo "value" property
             builder.isEmail("value", customMsg);
             return this;
         }
 
-        // Example rule: NotNull or not empty
+        // Example rule: validate that the input is not null or empty.
         public UIFieldValidator isNotEmpty(String customMsg) {
             builder.isNotNull("value", customMsg);
             return this;
         }
 
-        // can add more rules: matchesRegex, minLength, maxLength, etc.
+        // Additional rules (e.g., matchesRegex, etc.) can be added here.
 
         /**
-         * Called every time the text changes.
+         * Called after the debounce delay to perform validation.
          */
         private void validateInput(String newValue) {
-            // We trick the builder to think there's a "value" field on 'textField' object
-            // but actually, let's just store newValue in a simple field and re-validate:
-            textField.getProperties().put("value", newValue);
+            // Update the wrapper with the new value
+            fieldValueHolder.setValue(newValue);
 
             // Clear previous errors
             result.getErrors().clear();
 
-            // Actually do the validation
+            // Perform validation using the fluent builder
             ValidationResult checkResult = builder.validate();
 
             if (checkResult.hasErrors()) {
-                // Transfer errors to main result
                 result.getErrors().addAll(checkResult.getErrors());
-                // Trigger onInvalid callback if present
                 if (onInvalidCallback != null) {
                     onInvalidCallback.accept(null);
                 }
             } else {
-                // Valid
                 if (onValidCallback != null) {
                     onValidCallback.accept(null);
                 }
