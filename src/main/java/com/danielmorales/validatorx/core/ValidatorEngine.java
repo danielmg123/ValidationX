@@ -1,10 +1,16 @@
 package com.danielmorales.validatorx.core;
 
 import com.danielmorales.validatorx.annotations.Email;
+import com.danielmorales.validatorx.annotations.Max;
+import com.danielmorales.validatorx.annotations.Min;
 import com.danielmorales.validatorx.annotations.NotNull;
+import com.danielmorales.validatorx.annotations.Pattern;
 import com.danielmorales.validatorx.annotations.Size;
+import com.danielmorales.validatorx.i18n.MessageResolver;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.util.List;
 
 public class ValidatorEngine {
 
@@ -18,31 +24,34 @@ public class ValidatorEngine {
         }
 
         Class<?> clazz = target.getClass();
-        Field[] fields = clazz.getDeclaredFields();
+        List<ReflectionCache.FieldAnnotations> fieldAnnotationsList = ReflectionCache.getFieldAnnotations(clazz);
 
-        for (Field field : fields) {
-            field.setAccessible(true); // allow access to private fields
-
-            // Check for @NotNull
-            NotNull notNull = field.getAnnotation(NotNull.class);
-            if (notNull != null) {
-                validateNotNull(target, field, notNull, result);
-            }
-
-            // Check for @Email
-            Email email = field.getAnnotation(Email.class);
-            if (email != null) {
-                validateEmail(target, field, email, result);
-            }
-
-            // Check for @Size
-            Size size = field.getAnnotation(Size.class);
-            if (size != null) {
-                validateSize(target, field, size, result);
+        for (ReflectionCache.FieldAnnotations fa : fieldAnnotationsList) {
+            Field field = fa.getField();
+            for (Annotation annotation : fa.getAnnotations()) {
+                // Check annotation type
+                if (annotation instanceof NotNull) {
+                    validateNotNull(target, field, (NotNull) annotation, result);
+                } else if (annotation instanceof Email) {
+                    validateEmail(target, field, (Email) annotation, result);
+                } else if (annotation instanceof Size) {
+                    validateSize(target, field, (Size) annotation, result);
+                } else if (annotation instanceof Min) {
+                    validateMin(target, field, (Min) annotation, result);
+                } else if (annotation instanceof Max) {
+                    validateMax(target, field, (Max) annotation, result);
+                } else if (annotation instanceof Pattern) {
+                    validatePattern(target, field, (Pattern) annotation, result);
+                }
             }
         }
+        
+        // Throw exception if there are errors
+        if (result.hasErrors()) {
+            throw new ValidationException("Validation failed", result);
+        }
 
-        return result;
+        return result; // no errors
     }
 
     // ----- Implementation for each annotation check -----
@@ -94,6 +103,67 @@ public class ValidatorEngine {
         }
     }
 
+
+private void validateMin(Object target, Field field, Min annotation, ValidationResult result) {
+    try {
+        Object value = field.get(target);
+        if (value instanceof Number) {
+            Number number = (Number) value;
+            if (number.longValue() < annotation.value()) {
+                String message = resolveMessage(
+                    annotation.message(),
+                    annotation.messageKey(),
+                    field.getName(),
+                    String.format("must be >= %d", annotation.value())
+                );
+                result.addError(new ValidationError(field.getName(), message, number));
+            }
+        }
+    } catch (IllegalAccessException e) {
+        e.printStackTrace();
+    }
+}
+
+    private void validateMax(Object target, Field field, Max annotation, ValidationResult result) {
+        try {
+            Object value = field.get(target);
+            if (value instanceof Number) {
+                Number number = (Number) value;
+                if (number.longValue() > annotation.value()) {
+                    String message = resolveMessage(
+                        annotation.message(),
+                        annotation.messageKey(),
+                        field.getName(),
+                        String.format("must be <= %d", annotation.value())
+                    );
+                    result.addError(new ValidationError(field.getName(), message, number));
+                }
+            }
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void validatePattern(Object target, Field field, Pattern annotation, ValidationResult result) {
+        try {
+            Object value = field.get(target);
+            if (value instanceof String) {
+                String stringValue = (String) value;
+                if (!stringValue.matches(annotation.regex())) {
+                    String message = resolveMessage(
+                        annotation.message(),
+                        annotation.messageKey(),
+                        field.getName(),
+                        String.format("must match regex '%s'", annotation.regex())
+                    );
+                    result.addError(new ValidationError(field.getName(), message, stringValue));
+                }
+            }
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
     // Simple email check (placeholder)
     private boolean isValidEmail(String email) {
         return email.contains("@") && email.contains(".");
@@ -102,16 +172,15 @@ public class ValidatorEngine {
     // ----- Message resolution logic -----
     private String resolveMessage(String customMessage, String messageKey,
                                   String fieldName, String defaultMsg) {
-        // If the developer specified a custom message, use it:
         if (!customMessage.isEmpty()) {
             return customMessage;
         }
-        
-        // Otherwise, if we have a localized message resolver, call it here:
-        // e.g. MessageResolver.getMessage(messageKey, fieldName)
-        // For now, just fallback to default or messageKey:
-        
-        // Example fallback: "Field 'email' invalid email format"
-        return String.format("Field '%s' %s", fieldName, defaultMsg);
+
+        try {
+            String localized = MessageResolver.getMessage(messageKey, fieldName);
+            return localized;
+        } catch (Exception e) {
+            return String.format("Field '%s' %s", fieldName, defaultMsg);
+        }
     }
 }
