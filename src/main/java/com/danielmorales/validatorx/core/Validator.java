@@ -3,6 +3,9 @@ package com.danielmorales.validatorx.core;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
+
+import com.danielmorales.validatorx.rules.RuleRegistry;
 
 public class Validator {
 
@@ -51,6 +54,25 @@ public class Validator {
                 }
             } catch (Exception e) {
                 // handle reflection
+            }
+            return this;
+        }
+
+        public ValidationBuilder applyRule(String ruleName, String fieldName, String customMsg) {
+            try {
+                Object value = getFieldValue(fieldName);
+                Predicate<Object> rule = RuleRegistry.getRule(ruleName);
+                if (rule != null) {
+                    if (!rule.test(value)) {
+                        errors.add(new ValidationError(fieldName, customMsg, value));
+                    }
+                } else {
+                    // Possibly log or handle the case where the rule doesn't exist
+                    errors.add(new ValidationError(fieldName,
+                        "No rule found for: " + ruleName, value));
+                }
+            } catch (Exception e) {
+                // reflection error or field not found
             }
             return this;
         }
