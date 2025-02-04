@@ -14,11 +14,17 @@ import java.util.List;
 
 public class ValidatorEngine {
 
-    public ValidationResult validate(Object target) {
+    /**
+     * Accumulates all annotation-based validations and returns a ValidationResult.
+     * This method does not throw an exception if validation errors are found.
+     *
+     * @param target the object to validate
+     * @return a ValidationResult containing any errors found
+     */
+    public ValidationResult accumulateValidate(Object target) {
         ValidationResult result = new ValidationResult();
-        
+
         if (target == null) {
-            // If the entire object is null, handle it or return an error
             result.addError(new ValidationError("object", "Target object is null", null));
             return result;
         }
@@ -29,7 +35,6 @@ public class ValidatorEngine {
         for (ReflectionCache.FieldAnnotations fa : fieldAnnotationsList) {
             Field field = fa.getField();
             for (Annotation annotation : fa.getAnnotations()) {
-                // Check annotation type
                 if (annotation instanceof NotNull) {
                     validateNotNull(target, field, (NotNull) annotation, result);
                 } else if (annotation instanceof Email) {
@@ -45,13 +50,24 @@ public class ValidatorEngine {
                 }
             }
         }
-        
-        // Throw exception if there are errors
+
+        return result;
+    }
+
+    /**
+     * Accumulates all annotation-based validations and throws a ValidationException
+     * if any errors are found. Otherwise, returns the ValidationResult.
+     *
+     * @param target the object to validate
+     * @return a ValidationResult with no errors if validation passes
+     * @throws ValidationException if any validation errors are found
+     */
+    public ValidationResult validateAndThrow(Object target) {
+        ValidationResult result = accumulateValidate(target);
         if (result.hasErrors()) {
             throw new ValidationException("Validation failed", result);
         }
-
-        return result; // no errors
+        return result;
     }
 
     // ----- Implementation for each annotation check -----
@@ -103,26 +119,25 @@ public class ValidatorEngine {
         }
     }
 
-
-private void validateMin(Object target, Field field, Min annotation, ValidationResult result) {
-    try {
-        Object value = field.get(target);
-        if (value instanceof Number) {
-            Number number = (Number) value;
-            if (number.longValue() < annotation.value()) {
-                String message = resolveMessage(
-                    annotation.message(),
-                    annotation.messageKey(),
-                    field.getName(),
-                    String.format("must be >= %d", annotation.value())
-                );
-                result.addError(new ValidationError(field.getName(), message, number));
+    private void validateMin(Object target, Field field, Min annotation, ValidationResult result) {
+        try {
+            Object value = field.get(target);
+            if (value instanceof Number) {
+                Number number = (Number) value;
+                if (number.longValue() < annotation.value()) {
+                    String message = resolveMessage(
+                        annotation.message(),
+                        annotation.messageKey(),
+                        field.getName(),
+                        String.format("must be >= %d", annotation.value())
+                    );
+                    result.addError(new ValidationError(field.getName(), message, number));
+                }
             }
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
         }
-    } catch (IllegalAccessException e) {
-        e.printStackTrace();
     }
-}
 
     private void validateMax(Object target, Field field, Max annotation, ValidationResult result) {
         try {
@@ -164,14 +179,14 @@ private void validateMin(Object target, Field field, Min annotation, ValidationR
         }
     }
 
-    // Simple email check (placeholder)
+    // Simple email check (placeholder implementation)
     private boolean isValidEmail(String email) {
         return email.contains("@") && email.contains(".");
     }
 
     // ----- Message resolution logic -----
-    private String resolveMessage(String customMessage, String messageKey,
-                                  String fieldName, String defaultMsg) {
+
+    private String resolveMessage(String customMessage, String messageKey, String fieldName, String defaultMsg) {
         if (!customMessage.isEmpty()) {
             return customMessage;
         }

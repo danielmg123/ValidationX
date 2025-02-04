@@ -24,13 +24,13 @@ public class Validator {
             this.target = target;
         }
 
-        // Can optionally allow turning off annotation scanning for purely fluent checks
+        // Optionally turn off annotation scanning for purely fluent checks
         public ValidationBuilder skipAnnotations() {
             this.includeAnnotations = false;
             return this;
         }
 
-        // For each programmatic check
+        // Fluent check: Not null
         public ValidationBuilder isNotNull(String fieldName, String customMsg) {
             try {
                 Object value = getFieldValue(fieldName);
@@ -43,6 +43,7 @@ public class Validator {
             return this;
         }
 
+        // Fluent check: Email validation
         public ValidationBuilder isEmail(String fieldName, String customMsg) {
             try {
                 Object value = getFieldValue(fieldName);
@@ -58,6 +59,7 @@ public class Validator {
             return this;
         }
 
+        // Fluent check: Apply a custom rule by name (registered in RuleRegistry)
         public ValidationBuilder applyRule(String ruleName, String fieldName, String customMsg) {
             try {
                 Object value = getFieldValue(fieldName);
@@ -77,16 +79,59 @@ public class Validator {
             return this;
         }
 
-        // Add more checks: matchesRegex, hasLengthBetween, etc...
+        // Validate that a String's length is within a given range
+        public ValidationBuilder hasLengthBetween(String fieldName, int min, int max, String customMsg) {
+            try {
+                Object value = getFieldValue(fieldName);
+                if (value instanceof String) {
+                    int length = ((String) value).length();
+                    if (length < min || length > max) {
+                        errors.add(new ValidationError(fieldName,
+                            customMsg.isEmpty() ? String.format("Length must be between %d and %d", min, max) : customMsg,
+                            value));
+                    }
+                }
+            } catch (Exception e) {
+                // Handle reflection exceptions
+            }
+            return this;
+        }
 
-        // 3. Main validate method
+        // Validate that a String field matches a given regex
+        public ValidationBuilder matchesRegex(String fieldName, String regex, String customMsg) {
+            try {
+                Object value = getFieldValue(fieldName);
+                if (value instanceof String) {
+                    String str = (String) value;
+                    if (!str.matches(regex)) {
+                        errors.add(new ValidationError(fieldName,
+                            customMsg.isEmpty() ? String.format("Field '%s' must match regex '%s'", fieldName, regex) : customMsg,
+                            value));
+                    }
+                }
+            } catch (Exception e) {
+                // Handle reflection exceptions
+            }
+            return this;
+        }
+
+        // Cross-field validation using a custom rule (for complex business logic)
+        public ValidationBuilder customRule(Predicate<Object> rule, String customMsg) {
+            if (!rule.test(target)) {
+                errors.add(new ValidationError("object", customMsg, target));
+            }
+            return this;
+        }
+
+        // Main validate method (accumulates errors)
         public ValidationResult validate() {
             ValidationResult result = new ValidationResult();
 
-            // If annotation scanning is on, run the ValidatorEngine
+            // If annotation scanning is enabled, run the ValidatorEngine validations
             if (includeAnnotations) {
                 ValidatorEngine engine = new ValidatorEngine();
-                ValidationResult annotationResult = engine.validate(target);
+                // Use accumulateValidate instead of validate to avoid throwing exceptions immediately
+                ValidationResult annotationResult = engine.accumulateValidate(target);
                 result.getErrors().addAll(annotationResult.getErrors());
             }
 
@@ -96,7 +141,21 @@ public class Validator {
             return result;
         }
 
-        // Reflection helper
+        /**
+         * Performs validation and immediately throws a ValidationException if any errors are found.
+         *
+         * @return ValidationResult if no errors are present
+         * @throws ValidationException if there are validation errors
+         */
+        public ValidationResult validateAndThrow() {
+            ValidationResult result = validate();
+            if (result.hasErrors()) {
+                throw new ValidationException("Validation failed", result);
+            }
+            return result;
+        }
+
+        // Reflection helper method to get the value of a given field name
         private Object getFieldValue(String fieldName) throws IllegalAccessException, NoSuchFieldException {
             Class<?> clazz = target.getClass();
             Field field = clazz.getDeclaredField(fieldName);
