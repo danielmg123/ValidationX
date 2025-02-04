@@ -2,12 +2,14 @@ package com.danielmorales.validatorx.core;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ReflectionCache {
 
-    // Map<Class, List<FieldAnnotations>>
-    private static final Map<Class<?>, List<FieldAnnotations>> cache = new HashMap<>();
+    private static final Map<Class<?>, List<FieldAnnotations>> cache = new ConcurrentHashMap<>();
 
     public static List<FieldAnnotations> getFieldAnnotations(Class<?> clazz) {
         return cache.computeIfAbsent(clazz, ReflectionCache::scanClass);
