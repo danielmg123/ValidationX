@@ -2,22 +2,10 @@ package com.danielmorales.validatorx.pipeline;
 
 import com.danielmorales.validatorx.core.ValidationResult;
 import com.danielmorales.validatorx.core.Validator;
+import com.danielmorales.validatorx.core.ValidationProfileRegistry;
 
 import java.util.function.Consumer;
 
-/**
- * Example pipeline implementation:
- *   ValidatorPipeline<MyUser> pipeline = new DefaultValidationPipeline<>();
- *   pipeline.validateRequest(user)
- *           .withRuleSet("signupRules")
- *           .onFailure(result -> { 
- *               // e.g. return a 400 HTTP response
- *           })
- *           .onSuccess(() -> { 
- *               // proceed
- *           })
- *           .execute();
- */
 public class DefaultValidationPipeline<T> implements ValidationPipeline<T> {
     private T request;
     private String ruleSetName;
@@ -50,16 +38,24 @@ public class DefaultValidationPipeline<T> implements ValidationPipeline<T> {
 
     @Override
     public void execute() {
-        // 1. Could run annotation-based or fluent checks here
+        // Run the base (annotation-based and fluent) validations.
         ValidationResult result = Validator.check(request).validate();
 
-        // 2. If theres a "rule set," might define more programmatic checks or custom rules
+        // If a rule set (profile) is specified, look it up and apply it.
         if (ruleSetName != null) {
-            // e.g. apply some pre-configured rules from my own library
-            // Define "rule sets"
+            Consumer<Validator.ValidationBuilder> profile = ValidationProfileRegistry.getProfile(ruleSetName);
+            if (profile != null) {
+                // Create a new builder for additional rules (skip annotations)
+                Validator.ValidationBuilder profileBuilder = Validator.check(request).skipAnnotations();
+                // Apply the profile validations
+                profile.accept(profileBuilder);
+                // Merge errors from the profile into the overall result.
+                ValidationResult profileResult = profileBuilder.validate();
+                result.getErrors().addAll(profileResult.getErrors());
+            }
         }
 
-        // 3. Evaluate
+        // Evaluate and trigger the appropriate callback.
         if (result.hasErrors()) {
             if (failureAction != null) {
                 failureAction.accept(result);

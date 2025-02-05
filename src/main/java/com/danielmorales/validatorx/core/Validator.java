@@ -24,7 +24,7 @@ public class Validator {
             this.target = target;
         }
 
-        // Optionally turn off annotation scanning for purely fluent checks
+        // can optionally turn off annotation scanning for purely fluent checks
         public ValidationBuilder skipAnnotations() {
             this.includeAnnotations = false;
             return this;
@@ -69,9 +69,8 @@ public class Validator {
                         errors.add(new ValidationError(fieldName, customMsg, value));
                     }
                 } else {
-                    // Possibly log or handle the case where the rule doesn't exist
-                    errors.add(new ValidationError(fieldName,
-                        "No rule found for: " + ruleName, value));
+                    // Can possibly log or handle the case where the rule doesn't exist
+                    errors.add(new ValidationError(fieldName, "No rule found for: " + ruleName, value));
                 }
             } catch (Exception e) {
                 // reflection error or field not found
@@ -111,6 +110,43 @@ public class Validator {
                 }
             } catch (Exception e) {
                 // Handle reflection exceptions
+            }
+            return this;
+        }
+
+        /**
+         * Cascades validation into a nested object or collection.
+         * If the field is an array, Iterable, or a single object,
+         * its own validations will be executed and any errors merged.
+         *
+         * @param fieldName the name of the field to cascade into
+         * @return the current ValidationBuilder instance
+         */
+        public ValidationBuilder cascade(String fieldName) {
+            try {
+                Object value = getFieldValue(fieldName);
+                if (value == null) {
+                    errors.add(new ValidationError(fieldName, "Nested object is null", null));
+                } else if (value.getClass().isArray()) {
+                    int length = java.lang.reflect.Array.getLength(value);
+                    for (int i = 0; i < length; i++) {
+                        Object item = java.lang.reflect.Array.get(value, i);
+                        ValidationResult childResult = Validator.check(item).validate();
+                        errors.addAll(childResult.getErrors());
+                    }
+                } else if (value instanceof Iterable<?>) {
+                    for (Object item : (Iterable<?>) value) {
+                        ValidationResult childResult = Validator.check(item).validate();
+                        errors.addAll(childResult.getErrors());
+                    }
+                } else {
+                    // Validate a single nested object
+                    ValidationResult childResult = Validator.check(value).validate();
+                    errors.addAll(childResult.getErrors());
+                }
+            } catch (Exception e) {
+                // Optionally log the exception or add an error.
+                errors.add(new ValidationError(fieldName, "Error cascading validation: " + e.getMessage(), null));
             }
             return this;
         }
