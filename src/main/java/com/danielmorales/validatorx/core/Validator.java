@@ -7,30 +7,76 @@ import java.util.function.Predicate;
 
 import com.danielmorales.validatorx.rules.RuleRegistry;
 
+/**
+ * The core class for validation in ValidatorX.
+ * Provides a fluent API for defining validation rules on objects.
+ *
+ * <p>Usage Example:
+ * <pre>
+ * {@code
+ * User user = new User("Daniel", "daniel@example.com", "securePass123");
+ * ValidationResult result = Validator.check(user)
+ *         .isNotNull("name", "Name must not be null")
+ *         .isEmail("email", "Invalid email format")
+ *         .hasLengthBetween("password", 8, 20, "Password length must be 8-20 characters")
+ *         .validate();
+ *
+ * if (result.hasErrors()) {
+ *     System.out.println("Validation failed: " + result.getErrors());
+ * }
+ * }
+ * </pre>
+ *
+ * <p>Supports annotation-based validation and additional fluent checks.
+ *
+ * @author Daniel Morales
+ */
 public class Validator {
 
-    // 1. Entry point
+    /**
+     * Entry point for creating a validation builder.
+     *
+     * @param target the object to be validated
+     * @return a new instance of {@code ValidationBuilder}
+     */
     public static ValidationBuilder check(Object target) {
         return new ValidationBuilder(target);
     }
 
-    // 2. Inner builder class
+    /**
+     * A fluent builder class for defining validation rules.
+     */
     public static class ValidationBuilder {
         private final Object target;
         private final List<ValidationError> errors = new ArrayList<>();
         private boolean includeAnnotations = true;
 
+        /**
+         * Constructs a {@code ValidationBuilder}.
+         *
+         * @param target the object to be validated
+         */
         public ValidationBuilder(Object target) {
             this.target = target;
         }
 
-        // can optionally turn off annotation scanning for purely fluent checks
+        /**
+         * Disables annotation-based validation.
+         *
+         * @return the current {@code ValidationBuilder} instance
+         */
         public ValidationBuilder skipAnnotations() {
             this.includeAnnotations = false;
             return this;
         }
 
-        // Fluent check: Not null
+        /**
+         * Adds a rule to check if a field is not null.
+         *
+         * @param fieldName the name of the field
+         * @param customMsg the error message if validation fails
+         * @return the current {@code ValidationBuilder} instance
+         */
         public ValidationBuilder isNotNull(String fieldName, String customMsg) {
             try {
                 Object value = getFieldValue(fieldName);
@@ -43,7 +89,13 @@ public class Validator {
             return this;
         }
 
-        // Fluent check: Email validation
+        /**
+         * Adds a rule to check if a field contains a valid email address.
+         *
+         * @param fieldName the name of the field
+         * @param customMsg the error message if validation fails
+         * @return the current {@code ValidationBuilder} instance
+         */
         public ValidationBuilder isEmail(String fieldName, String customMsg) {
             try {
                 Object value = getFieldValue(fieldName);
@@ -59,7 +111,11 @@ public class Validator {
             return this;
         }
 
-        // Fluent check: Apply a custom rule by name (registered in RuleRegistry)
+        /**
+         * Validates the object and returns a {@code ValidationResult}.
+         *
+         * @return a {@code ValidationResult} containing validation errors, if any
+         */
         public ValidationBuilder applyRule(String ruleName, String fieldName, String customMsg) {
             try {
                 Object value = getFieldValue(fieldName);
@@ -78,7 +134,15 @@ public class Validator {
             return this;
         }
 
-        // Validate that a String's length is within a given range
+        /**
+         * Validates that a string field has a length within the specified range.
+         *
+         * @param fieldName the name of the field
+         * @param min the minimum length
+         * @param max the maximum length
+         * @param customMsg the error message if validation fails
+         * @return the current {@code ValidationBuilder} instance
+         */
         public ValidationBuilder hasLengthBetween(String fieldName, int min, int max, String customMsg) {
             try {
                 Object value = getFieldValue(fieldName);
@@ -96,7 +160,14 @@ public class Validator {
             return this;
         }
 
-        // Validate that a String field matches a given regex
+        /**
+         * Validates that a string field matches a given regex pattern.
+         *
+         * @param fieldName the name of the field
+         * @param regex the regex pattern
+         * @param customMsg the error message if validation fails
+         * @return the current {@code ValidationBuilder} instance
+         */
         public ValidationBuilder matchesRegex(String fieldName, String regex, String customMsg) {
             try {
                 Object value = getFieldValue(fieldName);
@@ -151,7 +222,13 @@ public class Validator {
             return this;
         }
 
-        // Cross-field validation using a custom rule (for complex business logic)
+        /**
+         * Performs validation using a custom predicate rule.
+         *
+         * @param rule the predicate defining the validation rule
+         * @param customMsg the error message if validation fails
+         * @return the current {@code ValidationBuilder} instance
+         */
         public ValidationBuilder customRule(Predicate<Object> rule, String customMsg) {
             if (!rule.test(target)) {
                 errors.add(new ValidationError("object", customMsg, target));
@@ -159,7 +236,11 @@ public class Validator {
             return this;
         }
 
-        // Main validate method (accumulates errors)
+        /**
+         * Executes validation and accumulates errors.
+         *
+         * @return a {@code ValidationResult} containing validation errors, if any
+         */
         public ValidationResult validate() {
             ValidationResult result = new ValidationResult();
 
@@ -191,7 +272,14 @@ public class Validator {
             return result;
         }
 
-        // Reflection helper method to get the value of a given field name
+        /**
+         * Retrieves the value of a field using reflection.
+         *
+         * @param fieldName the name of the field
+         * @return the field's value
+         * @throws IllegalAccessException if the field is inaccessible
+         * @throws NoSuchFieldException if the field does not exist
+         */
         private Object getFieldValue(String fieldName) throws IllegalAccessException, NoSuchFieldException {
             Class<?> clazz = target.getClass();
             Field field = clazz.getDeclaredField(fieldName);
