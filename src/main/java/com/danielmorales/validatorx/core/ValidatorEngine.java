@@ -37,6 +37,17 @@ public class ValidatorEngine {
             for (Annotation annotation : fa.getAnnotations()) {
                 if (annotation instanceof NotNull) {
                     validateNotNull(target, field, (NotNull) annotation, result);
+
+                    // Automatic cascading into nested objects
+                    try {
+                        Object nestedObject = field.get(target);
+                        if (nestedObject != null && shouldCascade(nestedObject)) {
+                            ValidationResult nestedResult = accumulateValidate(nestedObject);
+                            result.getErrors().addAll(nestedResult.getErrors());
+                        }
+                    } catch (IllegalAccessException e) {
+                        result.addError(new ValidationError(field.getName(), "Unable to access nested object", null));
+                    }
                 } else if (annotation instanceof Email) {
                     validateEmail(target, field, (Email) annotation, result);
                 } else if (annotation instanceof Size) {
@@ -51,8 +62,28 @@ public class ValidatorEngine {
             }
         }
 
+
         return result;
     }
+
+    // helper functions for cascading check
+    private boolean shouldCascade(Object obj) {
+        Class<?> clazz = obj.getClass();
+        return !isPrimitiveOrWrapper(clazz) && !clazz.isEnum() && !(obj instanceof String);
+    }
+    
+    private boolean isPrimitiveOrWrapper(Class<?> type) {
+        return type.isPrimitive() ||
+               type == Byte.class ||
+               type == Short.class ||
+               type == Integer.class ||
+               type == Long.class ||
+               type == Float.class ||
+               type == Double.class ||
+               type == Boolean.class ||
+               type == Character.class ||
+               type == String.class;
+    }    
 
     /**
      * Accumulates all annotation-based validations and throws a ValidationException
