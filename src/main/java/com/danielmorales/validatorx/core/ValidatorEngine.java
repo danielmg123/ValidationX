@@ -164,9 +164,26 @@ public class ValidatorEngine {
             Object value = field.get(target);
             if (value instanceof String) {
                 String stringValue = (String) value;
-                if (!isValidEmail(stringValue)) {
-                    String message = resolveMessage(annotation.message(), annotation.messageKey(),
-                            field.getName(), "invalid email format");
+
+                // Check whether we have a custom regex
+                String customRegex = annotation.regex().trim();
+                boolean isValid;
+                if (!customRegex.isEmpty()) {
+                    // Use the custom regex
+                    isValid = stringValue.matches(customRegex);
+                } else {
+                    // Fall back to your default check
+                    isValid = isValidEmail(stringValue);
+                }
+
+                // If invalid, register an error
+                if (!isValid) {
+                    String message = resolveMessage(
+                            annotation.message(),
+                            annotation.messageKey(),
+                            field.getName(),
+                            "invalid email format"
+                    );
                     result.addError(new ValidationError(field.getName(), message, stringValue));
                 }
             }
@@ -174,6 +191,7 @@ public class ValidatorEngine {
             e.printStackTrace();
         }
     }
+
 
     /**
      * Validates that a field's length is within the specified range.
@@ -286,6 +304,7 @@ public class ValidatorEngine {
         }
     }
 
+    private static final String EMAIL_REGEX = "^(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$";
     /**
      * Checks whether a given email string is valid.
      *
@@ -293,7 +312,7 @@ public class ValidatorEngine {
      * @return {@code true} if the email is valid, {@code false} otherwise
      */
     private boolean isValidEmail(String email) {
-        return email.contains("@") && email.contains(".");
+        return email.matches(EMAIL_REGEX);
     }
 
     // ----- Message resolution logic -----
@@ -313,8 +332,7 @@ public class ValidatorEngine {
         }
 
         try {
-            String localized = MessageResolver.getMessage(messageKey, fieldName);
-            return localized;
+            return MessageResolver.getMessage(messageKey, fieldName);
         } catch (Exception e) {
             return String.format("Field '%s' %s", fieldName, defaultMsg);
         }

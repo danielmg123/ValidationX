@@ -38,4 +38,12 @@ public @interface Email {
      * @return the custom validation message (default: empty)
      */
     String message() default "";
+
+    /**
+     * Optional custom regex for validating the email format more strictly.
+     * If empty, the validator uses the default email-check logic.
+     *
+     * @return the custom regex pattern (default: empty string)
+     */
+    String regex() default "";
 }
