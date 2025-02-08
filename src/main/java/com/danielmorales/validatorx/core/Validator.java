@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
+import com.danielmorales.validatorx.jsr380.Jsr380Validator;
 import com.danielmorales.validatorx.rules.RuleRegistry;
 
 /**
@@ -44,6 +45,16 @@ public class Validator {
     }
 
     /**
+     * Performs both the default ValidatorX validations and the JSR 380 validations.
+     *
+     * @param target the object to validate
+     * @return a merged ValidationResult containing errors from both validation mechanisms
+     */
+    public static ValidationResult checkWithJsr380(Object target) {
+        return ValidationBuilder.checkWithJsr380(target);
+    }
+
+    /**
      * A fluent builder class for defining validation rules.
      */
     public static class ValidationBuilder {
@@ -58,6 +69,22 @@ public class Validator {
          */
         public ValidationBuilder(Object target) {
             this.target = target;
+        }
+
+        /**
+         * Performs both the default ValidatorX validations
+         * and the JSR 380 validations.
+         *
+         * @param target the object to validate
+         * @return a merged ValidationResult containing errors from both validation mechanisms
+         */
+        public static ValidationResult checkWithJsr380(Object target) {
+            // First, perform the existing validations (both fluent and custom annotations)
+            ValidationResult result = check(target).validate();
+            // Then, perform the JSR 380 validations and merge the errors
+            ValidationResult jsrResult = Jsr380Validator.validate(target);
+            result.getErrors().addAll(jsrResult.getErrors());
+            return result;
         }
 
         /**

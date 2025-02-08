@@ -4,9 +4,38 @@
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     
-    <groupId>com.mycompany.validatorx</groupId>
+    <groupId>com.danielmorales.validatorx</groupId>
     <artifactId>validatorx</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <!-- Project Information -->
+    <name>ValidatorX</name>
+    <description>
+        ValidatorX is a flexible Java library for data validation with a fluent API,
+        supporting custom rules, cross-field validation, localization, and validation pipelines.
+    </description>
+    <url>https://github.com/danielmg123/ValidationX</url>
+
+    <!-- License Information -->
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <!-- Developer Information -->
+    <developers>
+        <developer>
+            <id>danielmorales</id>
+            <name>Daniel Morales</name>
+            <email>danielmg1272@gmail.com</email>
+            <url>https://github.com/danielmg123</url>
+        </developer>
+    </developers>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
@@ -26,6 +55,11 @@
         <artifactId>junit-jupiter-engine</artifactId>
         <version>5.8.2</version>
         <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>javax.validation</groupId>
+        <artifactId>validation-api</artifactId>
+        <version>2.0.1.Final</version>
     </dependency>
     </dependencies>
     
